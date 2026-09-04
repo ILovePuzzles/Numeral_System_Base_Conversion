@@ -249,7 +249,9 @@ namespace NumeralSystemBaseConversion
 
             do
             {
-                int maximalSpaceCount = precisionLimit / 3;
+                // The maximal space count is derived from the maximal number of blank spaces allowed for the integer part
+                // and the fractional part
+                int maximalSpaceCount = 2 * precisionLimit / 3;
 
                 // The maximal string length is computed as follows:
                 // If the number has a sign, it counts as 1 character;
@@ -321,7 +323,7 @@ namespace NumeralSystemBaseConversion
 
 
 
-                bool isValid = true;
+                bool validSpaces = true;
 
                 for (int i = 0; i < 3; i++)
                 {
@@ -333,7 +335,7 @@ namespace NumeralSystemBaseConversion
                         // If the value starts or ends with a blank space, it is also invalid
                         if (values[i].Length < 5 || values[i].StartsWith(" ") || values[i].EndsWith(" "))
                         {
-                            isValid = false;
+                            validSpaces = false;
 
                             if (i != 0)
                             { Console.WriteLine("\nError: the fractional part contains an invalid blank space pattern.\n"); }
@@ -347,17 +349,17 @@ namespace NumeralSystemBaseConversion
                         // Validates the blank space content of the input value part,
                         // depending on whether or not the part considered is the integer
                         // part (i == 0), or the fractional part (i != 0)
-                        isValid = ValidateBlankSpace(ref values[i], i == 0);
+                        validSpaces = ValidateBlankSpaces(ref values[i], i == 0);
 
                         // If the value is invalid, break the for loop
-                        if (!isValid)
+                        if (!validSpaces)
                         { break; }
 
                         spaceSeparator = true;
                     }
                 }
 
-                if (!isValid)
+                if (!validSpaces)
                 { continue; }
 
 
@@ -471,42 +473,49 @@ namespace NumeralSystemBaseConversion
                 denominator *= initialBase;
             }
 
-            BigInteger periodicNumerator = 0;
-            BigInteger periodicDenominator = 1;
-
-            // The for loop for the periodic part of the fraction
-            for (int position = periodicFractionLength - 1; position >= 0; position--)
+            // If the periodic part is not empty, processes the string
+            if (periodicFractionLength != 0)
             {
-                char c = periodicFractionPart[position];
-                int multiplier;
+                BigInteger periodicNumerator = 0;
+                BigInteger periodicDenominator = 1;
 
-                int digitIndex = Array.IndexOf(digitsLibrary, c, 0, initialBase);
-
-                if (digitIndex != -1)
-                { multiplier = digitIndex; }
-
-                else
+                // The for loop for the periodic part of the fraction
+                for (int position = periodicFractionLength - 1; position >= 0; position--)
                 {
-                    Console.WriteLine("\nError: the input value's fractional part contains invalid digits (periodic part).\n");
+                    char c = periodicFractionPart[position];
+                    int multiplier;
 
-                    return false;
+                    int digitIndex = Array.IndexOf(digitsLibrary, c, 0, initialBase);
+
+                    if (digitIndex != -1)
+                    { multiplier = digitIndex; }
+
+                    else
+                    {
+                        Console.WriteLine("\nError: the input value's fractional part contains invalid digits (periodic part).\n");
+
+                        return false;
+                    }
+
+                    periodicNumerator += multiplier * periodicDenominator;
+                    periodicDenominator *= initialBase;
                 }
 
-                periodicNumerator += multiplier * periodicDenominator;
-                periodicDenominator *= initialBase;
-            }
+                // If the periodic value is non-zero, tries to simplify the fraction
+                if (periodicNumerator != 0)
+                {
+                    periodicDenominator--;
 
-            // If the periodic part is not empty, and the periodic value is non-zero, tries to simplify the fraction
-            if (periodicFractionLength != 0 && periodicNumerator != 0)
-            {
-                periodicDenominator--;
-                numerator *= periodicDenominator;
-                numerator += periodicNumerator;
-                denominator *= periodicDenominator;
+                    // Converts the two fractions into one fraction
+                    numerator *= periodicDenominator;
+                    numerator += periodicNumerator;
+                    denominator *= periodicDenominator;
 
-                BigInteger gcd = GetGCD(numerator, denominator);
-                numerator /= gcd;
-                denominator /= gcd;
+                    // Simplifies the resulting fraction
+                    BigInteger gcd = GetGCD(numerator, denominator);
+                    numerator /= gcd;
+                    denominator /= gcd;
+                }
             }
 
             BigInteger integerExponential = 1;
@@ -560,8 +569,9 @@ namespace NumeralSystemBaseConversion
             // If the numerator is smaller than the denominator, converts the fraction to digits
             if (numerator < denominator)
             {
-                // Computes the digit values, while the counter is smaller than the cutoff limit
-                for (counter = 0; counter < cutoffLimit; counter++)
+                // Computes the digit values, while the numerator is non-zero and the counter is
+                // smaller than the cutoff limit
+                for (counter = 0; numerator != 0 && counter < cutoffLimit; counter++)
                 {
                     numerator *= finalBase;
 
@@ -581,21 +591,16 @@ namespace NumeralSystemBaseConversion
                     value = numerator / denominator;
                     valuesList.Add(value);
                     numerator -= value * denominator;
+                }
 
-                    // If the numerator is equal to 0 before the cutoff limit has been reached,
-                    // the value is aperiodic and exact. Breaks the loop
-                    if (numerator == 0)
-                    { break; }
-
-                    // If the numerator is not equal to 0 and the cutoff limit has been reached,
-                    // the value is periodic and approximate. Extracts an extra digit for the
-                    // rounding process that will follow
-                    else if (counter == cutoffLimit - 1)
-                    {
-                        numerator *= finalBase;
-                        value = numerator / denominator;
-                        valuesList.Add(value);
-                    }
+                // If the numerator is not equal to 0 and the cutoff limit has been reached,
+                // the value is periodic and approximate. Extracts an extra digit for the
+                // rounding process that will follow
+                if (numerator != 0 && counter == cutoffLimit)
+                {
+                    numerator *= finalBase;
+                    value = numerator / denominator;
+                    valuesList.Add(value);
                 }
             }
 
@@ -660,15 +665,16 @@ namespace NumeralSystemBaseConversion
             // In the case the value is approximate and periodic, tries to round the value
             else if (!exactValue)
             {
-                int counter = digitValues.Count - 1;
                 // Defines the threshold value that determines whether to round the digits' value
                 // or not
                 bool evenBase = (finalBase % 2 == 0 ? true : false);
                 int halfBase = (evenBase ? finalBase / 2 : (finalBase + 1) / 2);
+
+                int counter = digitValues.Count - 1;
                 // Gets the extra digit at the end of the list
                 BigInteger value = digitValues[counter];
                 // Removes the extra digit from the list
-                digitValues.RemoveAt(digitValues.Count - 1);
+                digitValues.RemoveAt(counter);
 
                 // Evaluates if the extra digit from the list is larger than or equal to
                 // the halfBase value. If it is, starts the rounding process
@@ -1124,7 +1130,7 @@ namespace NumeralSystemBaseConversion
         /// <param name="inputValuePart">The integer part, the aperiodic part, or the periodic part of the value to convert.</param>
         /// <param name="isIntegerPart">The integer part or fractional part boolean.</param>
         /// <returns>Returns whether the part considered is valid or not.</returns>
-        public static bool ValidateBlankSpace(ref string inputValuePart, bool isIntegerPart)
+        public static bool ValidateBlankSpaces(ref string inputValuePart, bool isIntegerPart)
         {
             int partLength = inputValuePart.Length;
             int residue = (isIntegerPart ? partLength % 4 : 3);
