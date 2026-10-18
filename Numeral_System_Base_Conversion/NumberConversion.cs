@@ -37,33 +37,31 @@ namespace NumeralSystemBaseConversion
         /// <summary>
         /// Coordinates the number system base conversion.
         /// </summary>
-        public static void ConvertNumber()
+        public static void ConvertValue()
         {
             // Stores whether or not the user wants to escape an input menu
-            bool escapeMenu;
-            // Stores whether or not the number to convert contains valid digits
-            bool validDigits;
+            bool escapeMenu = false;
 
             do
             {
-                // Resets the boolean value to false
-                validDigits = false;
-
                 // Validates the initial base value (the base to convert from)
-                int initialBase = ValidateBase(initialBaseMsg, out escapeMenu);
+                int initialBase = ValidateBase(initialBaseMsg, ref escapeMenu);
                 if (escapeMenu) { break; }
 
                 // Validates the final base value (the base to convert to)
-                int finalBase = ValidateBase(finalBaseMsg, out escapeMenu);
+                int finalBase = ValidateBase(finalBaseMsg, ref escapeMenu);
                 if (escapeMenu) { break; }
 
                 // Validates the desired precision in binary digits
-                int digitsLength = ValidatePrecision(out escapeMenu);
+                int digitsLength = ValidatePrecision(ref escapeMenu);
                 if (escapeMenu) { break; }
+
+                // Stores whether or not the number to convert contains valid digits
+                bool validDigits;
 
                 do
                 {
-                    // The precision limit is derived from the maximal capacity of 256 bits, converted
+                    // The precision limit is derived from the desired precision in binary digits, converted
                     // using the value of the initial base
                     int precisionLimit = (int)(digitsLength / Math.Log2(initialBase));
                     // The cutoff limit is computed to match the precision limit, converted
@@ -80,11 +78,11 @@ namespace NumeralSystemBaseConversion
 
                     // Validates the integer part, the aperiodic part of the fractional part and the periodic part of the fractional part
                     // from the value to convert
-                    string[] values = ValidateInput(precisionLimit, out negativeSign, out commaSeparator, out spaceSeparator, out escapeMenu);
+                    string[] values = ValidateInput(precisionLimit, out negativeSign, out commaSeparator, out spaceSeparator, ref escapeMenu);
                     if (escapeMenu) { break; }
 
                     // Allows to choose whether or not to separate every group of 3 digits by a blank space separator
-                    spaceSeparator = ChooseSpaceSeparator(out escapeMenu);
+                    spaceSeparator = ChooseSpaceSeparator(ref escapeMenu);
                     if (escapeMenu) { break; }
 
 
@@ -98,7 +96,7 @@ namespace NumeralSystemBaseConversion
                     BigInteger denominator = 1;
 
                     // Evaluates if the digits of the input string are valid or not, and computes the values of the integer and fractional part
-                    validDigits = ConvertStringsToValues(values, initialBase, ref integer, ref numerator, ref denominator);
+                    validDigits = ConvertStringsToNumbers(values, initialBase, ref integer, ref numerator, ref denominator);
 
                     // If the values' digit content is valid
                     if (validDigits)
@@ -116,7 +114,7 @@ namespace NumeralSystemBaseConversion
                             int cycleStartIndex = 0;
 
                             // Computes the individual digit value(s) from the fractional part
-                            List<BigInteger> digitValues = ConvertFractionToDigits(numerator, denominator, finalBase, cutoffLimit,
+                            List<int> digitValues = ConvertFractionToDigits(numerator, denominator, finalBase, cutoffLimit,
                                     ref cycleStartIndex, ref periodLength, ref exactValue);
 
                             // Converts the individual digit values from the fraction to their final string representation
@@ -129,16 +127,13 @@ namespace NumeralSystemBaseConversion
 
                         // Prints the result of the number conversion
                         PrintOutput(outputValue, periodLength, exactValue);
-
-                        break;
                     }
                 }
-                while (true);
-
-                // If the user wants to exit the loop, or if the number conversion is successful, breaks the loop
-                if (escapeMenu || validDigits) { break; }
+                // Repeats the loop while the digits are not valid
+                while (!validDigits);
             }
-            while (true);
+            // Repeats the loop while the user wants to continue
+            while (!escapeMenu);
         }
 
         /// <summary>
@@ -147,16 +142,15 @@ namespace NumeralSystemBaseConversion
         /// <param name="message">The message related to the initial base or the final base.</param>
         /// <param name="escapeMenu">The escape or not boolean.</param>
         /// <returns>Returns the validated base value.</returns>
-        public static int ValidateBase(string message, out bool escapeMenu)
+        public static int ValidateBase(string message, ref bool escapeMenu)
         {
-            escapeMenu = false;
             int validBase = 0;
 
 
 
             do
             {
-                string inputBase = ProcessKeyboardInputs(message, 2, out escapeMenu);
+                string inputBase = ProcessKeyboardInputs(message, 2, ref escapeMenu);
 
                 if (escapeMenu)
                 { break; }
@@ -186,9 +180,8 @@ namespace NumeralSystemBaseConversion
         /// </summary>
         /// <param name="escapeMenu">The escape or not boolean.</param>
         /// <returns>Returns the validated precision limit.</returns>
-        public static int ValidatePrecision(out bool escapeMenu)
+        public static int ValidatePrecision(ref bool escapeMenu)
         {
-            escapeMenu = false;
             int digitsLength = 0;
 
             string message = $"\nEnter the desired precision limit, in terms of binary digits. The values can" +
@@ -198,7 +191,7 @@ namespace NumeralSystemBaseConversion
 
             do
             {
-                string digitsLengthString = ProcessKeyboardInputs(message, 4, out escapeMenu);
+                string digitsLengthString = ProcessKeyboardInputs(message, 4, ref escapeMenu);
 
                 if (escapeMenu)
                 { break; }
@@ -233,17 +226,16 @@ namespace NumeralSystemBaseConversion
         /// <param name="escapeMenu">The escape or not boolean.</param>
         /// <returns>Returns the validated strings in a string array.</returns>
         public static string[] ValidateInput(int precisionLimit, out bool negativeSign, out bool commaSeparator,
-            out bool spaceSeparator, out bool escapeMenu)
+            out bool spaceSeparator, ref bool escapeMenu)
         {
             negativeSign = false;
             commaSeparator = false;
             spaceSeparator = false;
-            escapeMenu = false;
 
             string[] values = ["", "", ""];
             string message = $"\nEnter the number to convert. The integer part and the fractional part of the input value may contain up to" +
                 $" {precisionLimit} digits each. You can tag a value as being periodic in the fractional part; to do so, you must contain the" +
-                " periodic value between one opening parenthesis and one closing parenthesis. The parentheses will not count in the" +
+                " periodic value between one opening parenthesis and one closing parenthesis.\n\nThe parentheses will not count in the" +
                 " digit limit. Also, for an integer part and/or a fractional part with more than 3 digits, the blank space character can be" +
                 " used to separate groups of 3 digits, in order to make the value easier to read.";
 
@@ -260,7 +252,7 @@ namespace NumeralSystemBaseConversion
                 // The maximal number of digits accepted for the fractional part is precision limit;
                 // There can be 2 parentheses, which count as 2 characters.
                 // 1 + precisionLimit + 1 + precisionLimit + 2 + maximalSpaceCount = 2 * precisionLimit + 4 + maximalSpaceCount
-                string inputValue = ProcessKeyboardInputs(message, 2 * precisionLimit + 4 + maximalSpaceCount, out escapeMenu);
+                string inputValue = ProcessKeyboardInputs(message, 2 * precisionLimit + 4 + maximalSpaceCount, ref escapeMenu);
 
 
 
@@ -396,9 +388,8 @@ namespace NumeralSystemBaseConversion
         /// </summary>
         /// <param name="escapeMenu">The escape or not boolean.</param>
         /// <returns>Returns a boolean that represents the user's choice.</returns>
-        public static bool ChooseSpaceSeparator(out bool escapeMenu)
+        public static bool ChooseSpaceSeparator(ref bool escapeMenu)
         {
-            escapeMenu = false;
             int choice = 0;
 
             string message = $"\nIf you want the converted value to be formated using blank spaces to separate" +
@@ -408,7 +399,7 @@ namespace NumeralSystemBaseConversion
 
             do
             {
-                string choiceString = ProcessKeyboardInputs(message, 1, out escapeMenu);
+                string choiceString = ProcessKeyboardInputs(message, 1, ref escapeMenu);
 
                 if (escapeMenu)
                 { break; }
@@ -442,7 +433,7 @@ namespace NumeralSystemBaseConversion
         /// <param name="numerator">The numerator of the fractional part of the value.</param>
         /// <param name="denominator">The denominator of the fractional part of the value.</param>
         /// <returns>Returns a boolean that specifies whether or not the values are valid.</returns>
-        public static bool ConvertStringsToValues(string[] values, int initialBase, ref BigInteger integer, ref BigInteger numerator,
+        public static bool ConvertStringsToNumbers(string[] values, int initialBase, ref BigInteger integer, ref BigInteger numerator,
             ref BigInteger denominator)
         {
             string integerPart = values[0];
@@ -556,13 +547,13 @@ namespace NumeralSystemBaseConversion
         /// <param name="periodLength">The period length of the periodic value.</param>
         /// <param name="exactValue">The exact value or not boolean.</param>
         /// <returns>Returns a list of the individual digits from the fractional part.</returns>
-        public static List<BigInteger> ConvertFractionToDigits(BigInteger numerator, BigInteger denominator, int finalBase, int cutoffLimit,
+        public static List<int> ConvertFractionToDigits(BigInteger numerator, BigInteger denominator, int finalBase, int cutoffLimit,
             ref int cycleStartIndex, ref int periodLength, ref bool exactValue)
         {
             int counter;
             Dictionary<BigInteger, int> numeratorsDictionary = new Dictionary<BigInteger, int>();
-            BigInteger value = 0;
-            List<BigInteger> valuesList = new List<BigInteger>();
+            int value = 0;
+            List<int> digitValues = new List<int>();
 
 
 
@@ -580,7 +571,7 @@ namespace NumeralSystemBaseConversion
                     // length, then breaks the for loop
                     if (numeratorsDictionary.TryGetValue(numerator, out cycleStartIndex))
                     {
-                        periodLength = valuesList.Count - cycleStartIndex;
+                        periodLength = digitValues.Count - cycleStartIndex;
 
                         break;
                     }
@@ -588,8 +579,8 @@ namespace NumeralSystemBaseConversion
                     // Stores the numerator values in the dictionary, in an attempt to find a digit pattern
                     numeratorsDictionary.Add(numerator, counter);
 
-                    value = numerator / denominator;
-                    valuesList.Add(value);
+                    value = (int)(numerator / denominator);
+                    digitValues.Add(value);
                     numerator -= value * denominator;
                 }
 
@@ -599,8 +590,8 @@ namespace NumeralSystemBaseConversion
                 if (numerator != 0 && counter == cutoffLimit)
                 {
                     numerator *= finalBase;
-                    value = numerator / denominator;
-                    valuesList.Add(value);
+                    value = (int)(numerator / denominator);
+                    digitValues.Add(value);
                 }
             }
 
@@ -610,7 +601,7 @@ namespace NumeralSystemBaseConversion
                 // Fills the list with digits equal to the final base minus 1. Adds an extra
                 // digit for the rounding process that will follow
                 for (counter = 0; counter < cutoffLimit + 1; counter++)
-                { valuesList.Add(finalBase - 1); }
+                { digitValues.Add(finalBase - 1); }
             }
 
             // If the numerator is non-zero and the period length has not been determined,
@@ -618,7 +609,7 @@ namespace NumeralSystemBaseConversion
             if (numerator != 0 && periodLength == 0)
             { exactValue = false; }
 
-            return valuesList;
+            return digitValues;
         }
 
         /// <summary>
@@ -632,7 +623,7 @@ namespace NumeralSystemBaseConversion
         /// <param name="spaceSeparator">The blank space separator boolean.</param>
         /// <param name="integer">The integer part of the value to convert.</param>
         /// <returns>Returns the final string representation of the fractional part.</returns>
-        public static string ConvertDigitsToString(List<BigInteger> digitValues, int finalBase,
+        public static string ConvertDigitsToString(List<int> digitValues, int finalBase,
             int cycleStartIndex, int periodLength, bool exactValue, bool spaceSeparator, ref BigInteger integer)
         {
             string outputValue = "";
@@ -644,10 +635,10 @@ namespace NumeralSystemBaseConversion
                 string periodicPart = "";
 
                 for (int i = 0; i < cycleStartIndex; i++)
-                { aperiodicPart += digitsLibrary[(int)digitValues[i]]; }
+                { aperiodicPart += digitsLibrary[digitValues[i]]; }
 
                 for (int i = cycleStartIndex; i < digitValues.Count; i++)
-                { periodicPart += digitsLibrary[(int)digitValues[i]]; }
+                { periodicPart += digitsLibrary[digitValues[i]]; }
 
                 // If the input contained space separators, inserts blank spaces
                 if (spaceSeparator)
@@ -665,14 +656,13 @@ namespace NumeralSystemBaseConversion
             // In the case the value is approximate and periodic, tries to round the value
             else if (!exactValue)
             {
-                // Defines the threshold value that determines whether to round the digits' value
-                // or not
+                // Defines the threshold value that determines whether or not to round the digits' value
                 bool evenBase = (finalBase % 2 == 0 ? true : false);
                 int halfBase = (evenBase ? finalBase / 2 : (finalBase + 1) / 2);
 
                 int counter = digitValues.Count - 1;
                 // Gets the extra digit at the end of the list
-                BigInteger value = digitValues[counter];
+                int value = digitValues[counter];
                 // Removes the extra digit from the list
                 digitValues.RemoveAt(counter);
 
@@ -733,13 +723,13 @@ namespace NumeralSystemBaseConversion
         public static string ConvertIntegerToString(BigInteger integer, int finalBase, string outputValue,
             bool negativeSign, bool commaSeparator, bool spaceSeparator)
         {
-            BigInteger value;
+            int value;
             string integerPart = "";
 
             do
             {
-                value = integer % finalBase;
-                integerPart = digitsLibrary[(int)value] + integerPart;
+                value = (int)(integer % finalBase);
+                integerPart = digitsLibrary[value] + integerPart;
                 integer /= finalBase;
             }
             while (integer > 0);
@@ -821,9 +811,8 @@ namespace NumeralSystemBaseConversion
         /// <param name="maximalStringLength">The maximal string length value.</param>
         /// <param name="escapeMenu">The escape or not boolean.</param>
         /// <returns>Returns the input string.</returns>
-        public static string ProcessKeyboardInputs(string message, int maximalStringLength, out bool escapeMenu)
+        public static string ProcessKeyboardInputs(string message, int maximalStringLength, ref bool escapeMenu)
         {
-            escapeMenu = false;
             string stringLengthMsg = $" The maximal string length is {maximalStringLength} ASCII characters.\n";
             message += stringLengthMsg;
 
