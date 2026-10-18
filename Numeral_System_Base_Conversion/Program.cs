@@ -45,7 +45,7 @@ namespace NumeralSystemBaseConversion
 
             do
             {
-                NumberConversion.ConvertNumber();
+                NumberConversion.ConvertValue();
 
 
 
