@@ -42,6 +42,9 @@ namespace NumeralSystemBaseConversion
             // Stores whether or not the user wants to escape an input menu
             bool escapeMenu = false;
 
+            // Stores whether or not the number to convert contains valid digits
+            bool validDigits = false;
+
             do
             {
                 // Validates the initial base value (the base to convert from)
@@ -55,9 +58,6 @@ namespace NumeralSystemBaseConversion
                 // Validates the desired precision in binary digits
                 int digitsLength = ValidatePrecision(ref escapeMenu);
                 if (escapeMenu) { break; }
-
-                // Stores whether or not the number to convert contains valid digits
-                bool validDigits;
 
                 do
                 {
@@ -133,7 +133,7 @@ namespace NumeralSystemBaseConversion
                 while (!validDigits);
             }
             // Repeats the loop while the user wants to continue
-            while (!escapeMenu);
+            while (!escapeMenu && !validDigits);
         }
 
         /// <summary>
